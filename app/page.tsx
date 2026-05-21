@@ -15,7 +15,14 @@ type CartItem = {
 
 // TODO: Replace with your WhatsApp business number (e.g. 8801XXXXXXXXX)
 const WHATSAPP_NUMBER = '8801815569525'
-const DELIVERY_CHARGE = 150
+
+type DeliveryLocation = 'inside' | 'outside' | null
+
+function getDeliveryCharge(location: DeliveryLocation): number {
+  if (location === 'inside') return 0
+  if (location === 'outside') return 150
+  return 0
+}
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 const PRODUCTS: Product[] = [
@@ -24,8 +31,8 @@ const PRODUCTS: Product[] = [
   { id: 3, name: 'DC Drop Shoulder 03', price: '৳1,699', description: 'Vintage white, sun-faded finish. The fabric falls. The crowd stares.', img: 'product-03.jpg' },
   { id: 4, name: 'DC Archive Piece',    price: '৳1,899', description: "Premium heavyweight 260 GSM. Jet black mineral wash. Once it's gone, it's archived forever.", tag: 'Archive', img: 'product-04.jpg' },
 ]
-const SIZES   = ['M','L','XL',]
-const COLOURS = ['Acid Wash Black']
+const SIZES   = ['XS','S','M','L','XL','XXL']
+const COLOURS = ['Acid Wash Black','Washed Ash Grey','Vintage White','Stone Brown','Jet Black']
 const NAV_ITEMS = [
   { label: 'Drop Shoulder', href: '#products' },
   { label: 'Old Money Polo', href: '#products' },
@@ -57,12 +64,28 @@ function isValidBangladeshMobile(mobile: string): boolean {
   return /^01\d{9}$/.test(mobile.trim())
 }
 
-function buildWhatsAppMessage(cart: CartItem[], mobile: string, address: string): string {
+function buildWhatsAppMessage(
+  cart: CartItem[],
+  mobile: string,
+  address: string,
+  deliveryLocation: 'inside' | 'outside'
+): string {
   const subtotal = cartSubtotal(cart)
-  const total = subtotal + DELIVERY_CHARGE
+  const deliveryCharge = getDeliveryCharge(deliveryLocation)
+  const total = subtotal + deliveryCharge
+  const deliveryInfo =
+    deliveryLocation === 'inside'
+      ? '🚚 Delivery: Inside Chittagong — FREE'
+      : '🚚 Delivery: Outside Chittagong — ৳150'
+  const deliveryChargeLine =
+    deliveryLocation === 'inside'
+      ? '🚚 Delivery Charge:   FREE'
+      : '🚚 Delivery Charge:   ৳150'
+
   const lines: string[] = [
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     '🛍️ NEW ORDER — DRAPECURVE',
-    '━━━━━━━━━━━━━━━━━━━━━',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     '',
   ]
   cart.forEach(item => {
@@ -77,9 +100,11 @@ function buildWhatsAppMessage(cart: CartItem[], mobile: string, address: string)
   lines.push(
     '─────────────────────',
     `📦 Subtotal:         ${formatPrice(subtotal)}`,
-    `🚚 Delivery Charge:   ${formatPrice(DELIVERY_CHARGE)}`,
+    deliveryChargeLine,
     `💰 TOTAL:            ${formatPrice(total)}`,
     '─────────────────────',
+    '',
+    deliveryInfo,
     '',
     `📱 Mobile: ${mobile.trim()}`,
     `📍 Address: ${address.trim()}`,
@@ -90,17 +115,24 @@ function buildWhatsAppMessage(cart: CartItem[], mobile: string, address: string)
 }
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
-function Toast({ visible }: { visible: boolean }) {
+function Toast({ visible, onViewCart }: { visible: boolean; onViewCart: () => void }) {
   if (!visible) return null
   return (
-    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] px-6 py-3 bg-[#111] border border-white/10 text-white text-xs tracking-widest uppercase shadow-lg">
-      Added to cart ✓
+    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-4 px-5 py-3 bg-[#111] border border-white/10 text-white text-xs tracking-widest uppercase shadow-lg max-w-[calc(100vw-2rem)]">
+      <span>✓ Added to cart!</span>
+      <button
+        type="button"
+        onClick={onViewCart}
+        className="text-[10px] tracking-[0.2em] px-3 py-1.5 bg-white text-black hover:bg-white/90 transition-colors shrink-0"
+      >
+        VIEW CART →
+      </button>
     </div>
   )
 }
 
 // ─── Navbar ──────────────────────────────────────────────────────────────────
-function Navbar({ cartCount, onOpenCart }: { cartCount: number; onOpenCart: () => void }) {
+function Navbar({ cartCount, onOpenCart, badgePulse }: { cartCount: number; onOpenCart: () => void; badgePulse: boolean }) {
   const [open, setOpen]         = useState(false)
   const [itemsOpen, setItemsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -147,7 +179,7 @@ function Navbar({ cartCount, onOpenCart }: { cartCount: number; onOpenCart: () =
               <path d="M16 10a4 4 0 01-8 0" />
             </svg>
             {cartCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-white text-black text-[10px] font-medium rounded-full px-1">
+              <span className={`absolute -top-1 -right-1 min-w-[20px] h-[20px] flex items-center justify-center bg-white text-black text-[10px] font-semibold rounded-full px-1 ${badgePulse ? 'animate-cart-badge-pulse' : ''}`}>
                 {cartCount > 99 ? '99+' : cartCount}
               </span>
             )}
@@ -195,10 +227,12 @@ function ProductModal({
   product,
   onClose,
   onAddToCart,
+  onBuyNow,
 }: {
   product: Product
   onClose: () => void
   onAddToCart: (item: Omit<CartItem, 'quantity'> & { quantity: number }) => void
+  onBuyNow: (item: Omit<CartItem, 'quantity'> & { quantity: number }) => void
 }) {
   const [size, setSize] = useState('')
   const [colour, setColour] = useState('')
@@ -206,17 +240,25 @@ function ProductModal({
 
   const canAdd = size && colour
 
+  const buildItem = () => ({
+    id: product.id,
+    name: product.name,
+    price: parsePrice(product.price),
+    size,
+    colour,
+    quantity,
+    img: product.img,
+  })
+
   const handleAdd = () => {
     if (!canAdd) return
-    onAddToCart({
-      id: product.id,
-      name: product.name,
-      price: parsePrice(product.price),
-      size,
-      colour,
-      quantity,
-      img: product.img,
-    })
+    onAddToCart(buildItem())
+    onClose()
+  }
+
+  const handleBuyNow = () => {
+    if (!canAdd) return
+    onBuyNow(buildItem())
     onClose()
   }
 
@@ -264,10 +306,16 @@ function ProductModal({
             </div>
           </div>
 
-          <button type="button" onClick={handleAdd} disabled={!canAdd}
-            className="w-full py-4 bg-white text-black text-xs tracking-[0.3em] uppercase font-medium hover:bg-white/90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-            Add to Cart
-          </button>
+          <div className="space-y-3 pt-2">
+            <button type="button" onClick={handleBuyNow} disabled={!canAdd}
+              className="w-full py-4 bg-white text-black text-xs tracking-[0.3em] uppercase font-medium hover:bg-white/90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              BUY NOW →
+            </button>
+            <button type="button" onClick={handleAdd} disabled={!canAdd}
+              className="w-full py-3.5 bg-transparent text-white text-xs tracking-[0.3em] uppercase border border-white hover:bg-white/5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              + ADD TO CART
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -290,18 +338,27 @@ function CartView({
 }) {
   const [mobile, setMobile] = useState('')
   const [address, setAddress] = useState('')
+  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation>(null)
   const [mobileError, setMobileError] = useState('')
   const [addressError, setAddressError] = useState('')
+  const [locationError, setLocationError] = useState('')
   const [orderSent, setOrderSent] = useState(false)
   const [confirmedMobile, setConfirmedMobile] = useState('')
 
   const subtotal = cartSubtotal(cart)
-  const total = subtotal + DELIVERY_CHARGE
+  const deliveryCharge = getDeliveryCharge(deliveryLocation)
+  const total = subtotal + deliveryCharge
 
   const validate = (): boolean => {
     let valid = true
     setMobileError('')
     setAddressError('')
+    setLocationError('')
+
+    if (!deliveryLocation) {
+      setLocationError('Please select your delivery location')
+      valid = false
+    }
 
     if (!mobile.trim()) {
       setMobileError('Please enter your mobile number')
@@ -321,7 +378,7 @@ function CartView({
 
   const handleWhatsApp = () => {
     if (!validate()) return
-    const message = buildWhatsAppMessage(cart, mobile, address)
+    const message = buildWhatsAppMessage(cart, mobile, address, deliveryLocation!)
     window.open(
       `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
       '_blank'
@@ -412,9 +469,15 @@ function CartView({
                 <span className="text-white/50 tracking-wide">Subtotal:</span>
                 <span className="text-white">{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-sm items-center">
                 <span className="text-[10px] tracking-[0.15em] uppercase text-white/50">Delivery Charge:</span>
-                <span className="text-white">{formatPrice(DELIVERY_CHARGE)}</span>
+                {deliveryLocation === 'inside' ? (
+                  <span className="text-[#22c55e] font-medium tracking-wide">FREE</span>
+                ) : deliveryLocation === 'outside' ? (
+                  <span className="text-white">{formatPrice(150)}</span>
+                ) : (
+                  <span className="text-white/30 text-xs">—</span>
+                )}
               </div>
               <div className="pt-3 border-t border-[#333] flex justify-between">
                 <span className="text-[10px] tracking-[0.25em] uppercase text-white/60">Total:</span>
@@ -431,17 +494,61 @@ function CartView({
                 {mobileError && <p className="mt-2 text-[#ef4444] text-xs">{mobileError}</p>}
               </div>
               <div>
+                <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Delivery Location</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setDeliveryLocation('inside'); setLocationError('') }}
+                    className={`rounded-sm p-4 text-left border transition-all duration-200 flex flex-col gap-1 min-h-[120px] ${
+                      deliveryLocation === 'inside'
+                        ? 'bg-white text-black border-white'
+                        : 'bg-[#111] text-white border-[#333] hover:border-white/30'
+                    }`}
+                  >
+                    <span className="text-lg leading-none">📍</span>
+                    <span className="text-[10px] tracking-[0.2em] uppercase font-medium">Inside</span>
+                    <span className="text-[10px] tracking-[0.15em] uppercase opacity-80">Chittagong</span>
+                    <span className={`text-[10px] tracking-wider mt-auto ${deliveryLocation === 'inside' ? 'text-green-700' : 'text-[#22c55e]'}`}>
+                      Delivery: FREE
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setDeliveryLocation('outside'); setLocationError('') }}
+                    className={`rounded-sm p-4 text-left border transition-all duration-200 flex flex-col gap-1 min-h-[120px] ${
+                      deliveryLocation === 'outside'
+                        ? 'bg-white text-black border-white'
+                        : 'bg-[#111] text-white border-[#333] hover:border-white/30'
+                    }`}
+                  >
+                    <span className="text-lg leading-none">🚚</span>
+                    <span className="text-[10px] tracking-[0.2em] uppercase font-medium">Outside</span>
+                    <span className="text-[10px] tracking-[0.15em] uppercase opacity-80">Chittagong</span>
+                    <span className={`text-[10px] tracking-wider mt-auto ${deliveryLocation === 'outside' ? 'text-black/70' : 'text-white/70'}`}>
+                      Delivery: ৳150
+                    </span>
+                  </button>
+                </div>
+                {locationError && <p className="mt-2 text-[#ef4444] text-xs">{locationError}</p>}
+              </div>
+
+              <div>
                 <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Delivery Address</label>
                 <textarea rows={4} placeholder="Full address including district..." value={address} onChange={e => { setAddress(e.target.value); setAddressError('') }}
                   className="w-full bg-transparent border border-white/10 text-white text-sm px-4 py-3 placeholder-white/20 focus:border-white/40 focus:outline-none transition-colors resize-none" />
                 {addressError && <p className="mt-2 text-[#ef4444] text-xs">{addressError}</p>}
               </div>
 
-              <button type="button" onClick={handleWhatsApp}
-                className="w-full py-4 bg-white text-black text-xs tracking-[0.3em] uppercase font-medium hover:bg-white/90 transition-all duration-200 flex items-center justify-center gap-2">
-                <span>📱</span>
-                <span>Confirm Order Via WhatsApp →</span>
-              </button>
+              <div className="pt-2">
+                <p className="text-center text-white/40 text-xs mb-4 tracking-wide">
+                  আপনার অর্ডার WhatsApp এ পাঠান
+                </p>
+                <button type="button" onClick={handleWhatsApp}
+                  className="w-full py-5 bg-[#25D366] text-white text-sm tracking-[0.15em] uppercase font-medium hover:bg-[#20bd5a] transition-all duration-200 flex flex-col items-center justify-center gap-1">
+                  <span className="text-base">📱 অর্ডার করুন (WhatsApp)</span>
+                  <span className="text-[10px] tracking-[0.25em] opacity-90">CONFIRM ORDER VIA WHATSAPP</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -450,13 +557,51 @@ function CartView({
   )
 }
 
+// ─── Floating Cart Button ─────────────────────────────────────────────────────
+function FloatingCartButton({ cartCount, onOpenCart }: { cartCount: number; onOpenCart: () => void }) {
+  if (cartCount < 1) return null
+  const label =
+    cartCount === 1 ? 'VIEW CART (1 item)' : `VIEW CART (${cartCount} items)`
+
+  return (
+    <>
+      {/* Desktop / tablet — bottom right pill */}
+      <button
+        type="button"
+        onClick={onOpenCart}
+        className="hidden md:flex fixed bottom-5 right-5 z-[90] items-center gap-2 px-6 py-3.5 bg-white text-black text-xs font-bold tracking-[0.15em] uppercase rounded-full shadow-lg hover:bg-white/90 transition-all duration-200"
+        aria-label="View cart"
+      >
+        <span>🛒</span>
+        <span>{label}</span>
+        <span>→</span>
+      </button>
+      {/* Mobile — full width bottom bar */}
+      <button
+        type="button"
+        onClick={onOpenCart}
+        className="md:hidden fixed bottom-0 left-0 right-0 z-[90] flex items-center justify-center gap-3 px-6 py-4 bg-white text-black text-xs font-bold tracking-[0.12em] uppercase border-t border-black/10 shadow-[0_-4px_24px_rgba(0,0,0,0.4)]"
+        aria-label="View cart"
+      >
+        <span>🛒</span>
+        <span>VIEW CART</span>
+        <span className="text-black/50">—</span>
+        <span>{cartCount} {cartCount === 1 ? 'item' : 'items'}</span>
+        <span>→</span>
+      </button>
+    </>
+  )
+}
+
 // ─── Product Card ─────────────────────────────────────────────────────────────
 function ProductCard({
   product,
   onAddToCart,
+  onBuyNow,
 }: {
   product: Product
   onAddToCart: (item: Omit<CartItem, 'quantity'> & { quantity: number }) => void
+  onBuyNow: (item: Omit<CartItem, 'quantity'> & { quantity: number }) => void
 }) {
   const [showModal, setShowModal] = useState(false)
   return (
@@ -497,6 +642,7 @@ function ProductCard({
           product={product}
           onClose={() => setShowModal(false)}
           onAddToCart={onAddToCart}
+          onBuyNow={onBuyNow}
         />
       )}
     </>
@@ -504,7 +650,7 @@ function ProductCard({
 }
 
 // ─── Scroll To Top ────────────────────────────────────────────────────────────
-function ScrollToTop() {
+function ScrollToTop({ cartHasItems }: { cartHasItems: boolean }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
     const fn = () => setVisible(window.scrollY > 400)
@@ -514,7 +660,7 @@ function ScrollToTop() {
   if (!visible) return null
   return (
     <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      className="fixed bottom-8 right-8 z-50 w-10 h-10 bg-white text-black flex items-center justify-center hover:bg-white/90 transition-all duration-300"
+      className={`fixed z-50 w-10 h-10 bg-white text-black flex items-center justify-center hover:bg-white/90 transition-all duration-300 right-8 ${cartHasItems ? 'bottom-24 md:bottom-8' : 'bottom-8'}`}
       aria-label="Back to top">↑</button>
   )
 }
@@ -533,8 +679,8 @@ function Footer() {
           <div>
             <p className="text-[10px] tracking-[0.3em] uppercase text-white/30 mb-5">Contact</p>
             <div className="space-y-3 text-xs text-white/40 tracking-wide">
-              <p>📱 WhatsApp: +8801815569525</p>
-              <p>✉️ www.drapecurve.dc@gmail.com</p>
+              <p>📱 WhatsApp: +880 XXXXXXXXXX</p>
+              <p>✉️ hello@drapecurve.com</p>
               <p>📍 Chittagong, Bangladesh</p>
             </div>
           </div>
@@ -542,9 +688,9 @@ function Footer() {
             <p className="text-[10px] tracking-[0.3em] uppercase text-white/30 mb-5">Follow Us</p>
             <div className="space-y-3">
               {[
-                { name: 'Instagram', handle: '@drapecurve', href: 'https://www.instagram.com/drapecurve/' },
-                { name: 'Facebook',  handle: 'DrapeCurve', href: 'https://www.facebook.com/DrapeCurve' },
-                { name: 'TikTok',   handle: '@drapecurve', href: 'https://www.tiktok.com/@drapecurve' },
+                { name: 'Instagram', handle: '@drapecurve', href: 'https://instagram.com/drapecurve' },
+                { name: 'Facebook',  handle: 'DrapeCurve BD', href: 'https://facebook.com/drapecurve' },
+                { name: 'TikTok',   handle: '@drapecurve', href: 'https://tiktok.com/@drapecurve' },
               ].map(s => (
                 <a key={s.name} href={s.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group">
                   <span className="text-[10px] tracking-[0.15em] uppercase text-white/25 w-20">{s.name}</span>
@@ -572,15 +718,29 @@ export default function Home() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [cartOpen, setCartOpen] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
+  const [badgePulse, setBadgePulse] = useState(false)
+  const prevCartCountRef = useRef(0)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const cartCount = cartTotalItems(cart)
 
+  useEffect(() => {
+    if (cartCount > prevCartCountRef.current) {
+      setBadgePulse(true)
+      const t = setTimeout(() => setBadgePulse(false), 2400)
+      prevCartCountRef.current = cartCount
+      return () => clearTimeout(t)
+    }
+    prevCartCountRef.current = cartCount
+  }, [cartCount])
+
   const showToast = () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     setToastVisible(true)
-    setTimeout(() => setToastVisible(false), 2000)
+    toastTimerRef.current = setTimeout(() => setToastVisible(false), 4000)
   }
 
-  const addToCart = (item: Omit<CartItem, 'quantity'> & { quantity: number }) => {
+  const mergeCartItem = (item: Omit<CartItem, 'quantity'> & { quantity: number }) => {
     const key = cartItemKey(item.id, item.size, item.colour)
     setCart(prev => {
       const existing = prev.find(
@@ -595,7 +755,16 @@ export default function Home() {
       }
       return [...prev, { ...item }]
     })
+  }
+
+  const addToCart = (item: Omit<CartItem, 'quantity'> & { quantity: number }) => {
+    mergeCartItem(item)
     showToast()
+  }
+
+  const buyNow = (item: Omit<CartItem, 'quantity'> & { quantity: number }) => {
+    mergeCartItem(item)
+    setCartOpen(true)
   }
 
   const updateQuantity = (key: string, quantity: number) => {
@@ -616,9 +785,10 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#080808] overflow-x-hidden">
-      <Navbar cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
-      <Toast visible={toastVisible} />
+    <main className={`min-h-screen bg-[#080808] overflow-x-hidden ${cartCount > 0 ? 'pb-24 md:pb-8' : ''}`}>
+      <Navbar cartCount={cartCount} onOpenCart={() => setCartOpen(true)} badgePulse={badgePulse} />
+      <Toast visible={toastVisible} onViewCart={() => { setToastVisible(false); setCartOpen(true) }} />
+      <FloatingCartButton cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
 
       {cartOpen && (
         <CartView
@@ -720,15 +890,15 @@ export default function Home() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
           {PRODUCTS.map(p => (
-            <ProductCard key={p.id} product={p} onAddToCart={addToCart} />
+            <ProductCard key={p.id} product={p} onAddToCart={addToCart} onBuyNow={buyNow} />
           ))}
         </div>
 
         <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px border border-white/5">
           {[
-            { icon: '📦', label: 'Free Delivery', sub: 'Inside Chattogram and for the repeated customer' },
+            { icon: '📦', label: 'Free Delivery', sub: 'Inside Bangladesh' },
             { icon: '💵', label: 'Cash on Delivery', sub: 'Pay at doorstep' },
-            { icon: '↩', label: 'Easy Returns', sub: 'If product has any issues' },
+            { icon: '↩', label: 'Easy Returns', sub: 'Within 3 days' },
             { icon: '✦', label: 'Limited Pieces', sub: 'No restock ever' },
           ].map(f => (
             <div key={f.label} className="bg-[#0e0e0e] px-6 py-6 flex flex-col gap-2">
@@ -758,7 +928,7 @@ export default function Home() {
       </section>
 
       <Footer />
-      <ScrollToTop />
+      <ScrollToTop cartHasItems={cartCount > 0} />
     </main>
   )
 }
