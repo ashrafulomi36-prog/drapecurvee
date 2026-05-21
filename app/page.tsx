@@ -534,7 +534,7 @@ function Footer() {
             <p className="text-[10px] tracking-[0.3em] uppercase text-white/30 mb-5">Contact</p>
             <div className="space-y-3 text-xs text-white/40 tracking-wide">
               <p>📱 WhatsApp: +8801815569525</p>
-              <p>✉️ drapecurve.dc@.com</p>
+              <p>✉️ www.drapecurve.dc@gmail.com</p>
               <p>📍 Chittagong, Bangladesh</p>
             </div>
           </div>
