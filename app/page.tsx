@@ -534,8 +534,8 @@ function Footer() {
           <div>
             <p className="text-[10px] tracking-[0.3em] uppercase text-white/30 mb-5">Contact</p>
             <div className="space-y-3 text-xs text-white/40 tracking-wide">
-              <p>📱 WhatsApp: +880 XXXXXXXXXX</p>
-              <p>✉️ hello@drapecurve.com</p>
+              <p>📱 WhatsApp: +8801815569525</p>
+              <p>✉️ drapecurve.dc@.com</p>
               <p>📍 Chittagong, Bangladesh</p>
             </div>
           </div>
@@ -543,9 +543,9 @@ function Footer() {
             <p className="text-[10px] tracking-[0.3em] uppercase text-white/30 mb-5">Follow Us</p>
             <div className="space-y-3">
               {[
-                { name: 'Instagram', handle: '@drapecurve', href: 'https://instagram.com/drapecurve' },
-                { name: 'Facebook',  handle: 'DrapeCurve BD', href: 'https://facebook.com/drapecurve' },
-                { name: 'TikTok',   handle: '@drapecurve', href: 'https://tiktok.com/@drapecurve' },
+                { name: 'Instagram', handle: '@drapecurve', href: 'https://www.instagram.com/drapecurve/' },
+                { name: 'Facebook',  handle: 'DrapeCurve', href: 'https://www.facebook.com/DrapeCurve' },
+                { name: 'TikTok',   handle: '@drapecurve', href: 'https://www.tiktok.com/@drapecurve' },
               ].map(s => (
                 <a key={s.name} href={s.href} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group">
                   <span className="text-[10px] tracking-[0.15em] uppercase text-white/25 w-20">{s.name}</span>
@@ -727,9 +727,9 @@ export default function Home() {
 
         <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px border border-white/5">
           {[
-            { icon: '📦', label: 'Free Delivery', sub: 'Inside Bangladesh' },
+            { icon: '📦', label: 'Free Delivery', sub: 'Inside Chattogram and for the repeated customer' },
             { icon: '💵', label: 'Cash on Delivery', sub: 'Pay at doorstep' },
-            { icon: '↩', label: 'Easy Returns', sub: 'Within 3 days' },
+            { icon: '↩', label: 'Easy Returns', sub: 'If product has any issues' },
             { icon: '✦', label: 'Limited Pieces', sub: 'No restock ever' },
           ].map(f => (
             <div key={f.label} className="bg-[#0e0e0e] px-6 py-6 flex flex-col gap-2">
