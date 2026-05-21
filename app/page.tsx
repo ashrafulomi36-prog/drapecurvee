@@ -343,12 +343,14 @@ function CartView({
   onClose,
   onUpdateQuantity,
   onRemove,
+  onClearCart,
   onClearAndClose,
 }: {
   cart: CartItem[]
   onClose: () => void
   onUpdateQuantity: (key: string, quantity: number) => void
   onRemove: (key: string) => void
+  onClearCart: () => void
   onClearAndClose: () => void
 }) {
   const [mobile, setMobile] = useState('')
@@ -402,6 +404,16 @@ function CartView({
     setOrderSent(true)
   }
 
+  const handleClearCart = () => {
+    onClearCart()
+    setMobile('')
+    setAddress('')
+    setDeliveryLocation(null)
+    setMobileError('')
+    setAddressError('')
+    setLocationError('')
+  }
+
   if (orderSent) {
     return (
       <div className="fixed inset-0 z-[250] bg-[#0a0a0a] flex flex-col">
@@ -431,7 +443,18 @@ function CartView({
     <div className="fixed inset-0 z-[250] bg-[#0a0a0a] flex flex-col">
       <div className="flex items-center justify-between px-6 md:px-10 h-16 md:h-20 border-b border-[#222] shrink-0">
         <h2 className="font-display text-sm tracking-[0.25em] text-white uppercase">Your Cart</h2>
-        <button onClick={onClose} className="p-2 text-white/40 hover:text-white transition-colors text-xl leading-none" aria-label="Close cart">✕</button>
+        <div className="flex items-center gap-3">
+          {cart.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearCart}
+              className="text-[10px] tracking-[0.25em] uppercase text-white/40 hover:text-[#ef4444] transition-colors"
+            >
+              Clear Cart
+            </button>
+          )}
+          <button onClick={onClose} className="p-2 text-white/40 hover:text-white transition-colors text-xl leading-none" aria-label="Close cart">✕</button>
+        </div>
       </div>
 
       {cart.length === 0 ? (
@@ -838,6 +861,8 @@ export default function Home() {
     setCart(prev => prev.filter(i => cartItemKey(i.id, i.size, i.colour) !== key))
   }
 
+  const clearCart = () => setCart([])
+
   const clearCartAndClose = () => {
     setCart([])
     setCartOpen(false)
@@ -855,6 +880,7 @@ export default function Home() {
           onClose={() => setCartOpen(false)}
           onUpdateQuantity={updateQuantity}
           onRemove={removeFromCart}
+          onClearCart={clearCart}
           onClearAndClose={clearCartAndClose}
         />
       )}
