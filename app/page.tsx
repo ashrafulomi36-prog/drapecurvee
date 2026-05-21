@@ -15,7 +15,7 @@ type CartItem = {
 
 // TODO: Replace with your WhatsApp business number (e.g. 8801XXXXXXXXX)
 const WHATSAPP_NUMBER = '8801815569525'
-const DELIVERY_CHARGE = 120
+const DELIVERY_CHARGE = 150
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 const PRODUCTS: Product[] = [
@@ -24,8 +24,8 @@ const PRODUCTS: Product[] = [
   { id: 3, name: 'DC Drop Shoulder 03', price: '৳1,699', description: 'Vintage white, sun-faded finish. The fabric falls. The crowd stares.', img: 'product-03.jpg' },
   { id: 4, name: 'DC Archive Piece',    price: '৳1,899', description: "Premium heavyweight 260 GSM. Jet black mineral wash. Once it's gone, it's archived forever.", tag: 'Archive', img: 'product-04.jpg' },
 ]
-const SIZES   = ['XS','S','M','L','XL','XXL']
-const COLOURS = ['Acid Wash Black','Washed Ash Grey','Vintage White','Stone Brown','Jet Black']
+const SIZES   = ['M','L','XL',]
+const COLOURS = ['Acid Wash Black']
 const NAV_ITEMS = [
   { label: 'Drop Shoulder', href: '#products' },
   { label: 'Old Money Polo', href: '#products' },
@@ -61,9 +61,8 @@ function buildWhatsAppMessage(cart: CartItem[], mobile: string, address: string)
   const subtotal = cartSubtotal(cart)
   const total = subtotal + DELIVERY_CHARGE
   const lines: string[] = [
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     '🛍️ NEW ORDER — DRAPECURVE',
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '━━━━━━━━━━━━━━━━━━━━━',
     '',
   ]
   cart.forEach(item => {
