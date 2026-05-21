@@ -1,10 +1,20 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { client } from '../sanity/lib/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Product = { id: number; name: string; price: string; description: string; tag?: string; img: string }
+type Product = {
+  _id: string
+  name: string
+  price: number
+  description: string
+  tag?: string
+  img: string
+  sizes: string[]
+  colours: string[]
+}
 type CartItem = {
-  id: number
+  id: string
   name: string
   price: number
   size: string
@@ -13,8 +23,17 @@ type CartItem = {
   img: string
 }
 
-// TODO: Replace with your WhatsApp business number (e.g. 8801XXXXXXXXX)
-const WHATSAPP_NUMBER = '8801815569525'
+const PRODUCTS_QUERY = `*[_type == "product" && inStock == true] 
+  | order(order asc) {
+    _id,
+    name,
+    price,
+    description,
+    tag,
+    "img": image.asset->url,
+    sizes,
+    colours
+  }`
 
 type DeliveryLocation = 'inside' | 'outside' | null
 
@@ -25,12 +44,6 @@ function getDeliveryCharge(location: DeliveryLocation): number {
 }
 
 // ─── Data ────────────────────────────────────────────────────────────────────
-const PRODUCTS: Product[] = [
-  { id: 1, name: 'DC Drop Shoulder 01', price: '৳1,699', description: 'Acid-washed 250 GSM combed cotton. Drop shoulder cut. Unstructured silhouette for the ones who drape different.', tag: 'Drop 01', img: 'product-01.jpg' },
-  { id: 2, name: 'DC Drop Shoulder 02', price: '৳1,699', description: 'Stone-washed charcoal. Oversized boxy fit with ribbed crew neck. Limited to 10 pieces.', tag: 'Limited', img: 'product-02.jpg' },
-  { id: 3, name: 'DC Drop Shoulder 03', price: '৳1,699', description: 'Vintage white, sun-faded finish. The fabric falls. The crowd stares.', img: 'product-03.jpg' },
-  { id: 4, name: 'DC Archive Piece',    price: '৳1,899', description: "Premium heavyweight 260 GSM. Jet black mineral wash. Once it's gone, it's archived forever.", tag: 'Archive', img: 'product-04.jpg' },
-]
 const SIZES   = ['XS','S','M','L','XL','XXL']
 const COLOURS = ['Acid Wash Black','Washed Ash Grey','Vintage White','Stone Brown','Jet Black']
 const NAV_ITEMS = [
@@ -40,15 +53,15 @@ const NAV_ITEMS = [
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function parsePrice(priceStr: string): number {
-  return parseInt(priceStr.replace(/[^\d]/g, ''), 10) || 0
+function formatProductPrice(price: number): string {
+  return `৳${price.toLocaleString('en-BD')}`
 }
 
 function formatPrice(amount: number): string {
   return `৳${amount.toLocaleString('en-BD')}`
 }
 
-function cartItemKey(id: number, size: string, colour: string): string {
+function cartItemKey(id: string, size: string, colour: string): string {
   return `${id}-${size}-${colour}`
 }
 
@@ -239,11 +252,13 @@ function ProductModal({
   const [quantity, setQuantity] = useState(1)
 
   const canAdd = size && colour
+  const sizes = product.sizes?.length ? product.sizes : SIZES
+  const colours = product.colours?.length ? product.colours : COLOURS
 
   const buildItem = () => ({
-    id: product.id,
+    id: product._id,
     name: product.name,
-    price: parsePrice(product.price),
+    price: product.price,
     size,
     colour,
     quantity,
@@ -276,7 +291,7 @@ function ProductModal({
           <div>
             <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Size</label>
             <div className="flex flex-wrap gap-2">
-              {SIZES.map(s => (
+              {sizes.map(s => (
                 <button type="button" key={s} onClick={() => setSize(s)}
                   className={`w-12 h-10 text-xs tracking-wider border transition-all duration-200 ${size === s ? 'bg-white text-black border-white' : 'bg-transparent text-white/60 border-white/15 hover:border-white/40'}`}>
                   {s}
@@ -288,7 +303,7 @@ function ProductModal({
           <div>
             <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Colour</label>
             <div className="space-y-2">
-              {COLOURS.map(c => (
+              {colours.map(c => (
                 <button type="button" key={c} onClick={() => setColour(c)}
                   className={`w-full text-left px-4 py-2.5 text-xs tracking-wider border transition-all duration-200 ${colour === c ? 'bg-white text-black border-white' : 'bg-transparent text-white/60 border-white/10 hover:border-white/30'}`}>
                   {c}
@@ -380,7 +395,7 @@ function CartView({
     if (!validate()) return
     const message = buildWhatsAppMessage(cart, mobile, address, deliveryLocation!)
     window.open(
-      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
+      `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
       '_blank'
     )
     setConfirmedMobile(mobile.trim())
@@ -593,6 +608,25 @@ function FloatingCartButton({ cartCount, onOpenCart }: { cartCount: number; onOp
   )
 }
 
+// ─── Product Skeleton ─────────────────────────────────────────────────────────
+function ProductSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex flex-col bg-[#0e0e0e] border border-white/5 animate-pulse">
+          <div className="aspect-[3/4] bg-[#151515]" />
+          <div className="p-5 space-y-4">
+            <div className="h-4 bg-white/10 rounded w-3/4" />
+            <div className="h-3 bg-white/5 rounded w-full" />
+            <div className="h-3 bg-white/5 rounded w-2/3" />
+            <div className="h-10 bg-white/10 rounded w-full mt-4" />
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
 // ─── Product Card ─────────────────────────────────────────────────────────────
 function ProductCard({
   product,
@@ -608,13 +642,21 @@ function ProductCard({
     <>
       <div className="group relative flex flex-col bg-[#0e0e0e] border border-white/5 hover:border-white/10 transition-all duration-500">
         <div className="relative aspect-[3/4] overflow-hidden bg-[#151515]">
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <div className="w-16 h-16 border border-white/10 rounded-full flex items-center justify-center">
-              <span className="font-display text-white/20 text-xs tracking-widest">DC</span>
+          {product.img ? (
+            <img
+              src={product.img}
+              alt={product.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <div className="w-16 h-16 border border-white/10 rounded-full flex items-center justify-center">
+                <span className="font-display text-white/20 text-xs tracking-widest">DC</span>
+              </div>
+              <p className="text-white/15 text-[10px] tracking-[0.3em] uppercase">Upload photo in</p>
+              <p className="text-white/10 text-[9px] tracking-wider">Sanity Studio</p>
             </div>
-            <p className="text-white/15 text-[10px] tracking-[0.3em] uppercase">Add photo to</p>
-            <p className="text-white/10 text-[9px] tracking-wider">/public/products/{product.img}</p>
-          </div>
+          )}
           {product.tag && (
             <div className="absolute top-4 left-4">
               <span className="text-[9px] tracking-[0.25em] uppercase bg-white text-black px-2.5 py-1">{product.tag}</span>
@@ -626,7 +668,7 @@ function ProductCard({
           <div>
             <div className="flex items-start justify-between mb-1.5">
               <h3 className="font-display text-sm tracking-[0.15em] uppercase text-white">{product.name}</h3>
-              <span className="text-sm tracking-wider text-white/60 shrink-0 ml-2">{product.price}</span>
+              <span className="text-sm tracking-wider text-white/60 shrink-0 ml-2">{formatProductPrice(product.price)}</span>
             </div>
             <p className="text-xs text-white/35 leading-relaxed tracking-wide">{product.description}</p>
           </div>
@@ -719,10 +761,27 @@ export default function Home() {
   const [cartOpen, setCartOpen] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
   const [badgePulse, setBadgePulse] = useState(false)
+  const [products, setProducts] = useState<Product[]>([])
+  const [productsLoading, setProductsLoading] = useState(true)
   const prevCartCountRef = useRef(0)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const cartCount = cartTotalItems(cart)
+
+  useEffect(() => {
+    client.fetch(PRODUCTS_QUERY)
+      .then((data: Product[]) => {
+        setProducts(
+          data.map(p => ({
+            ...p,
+            sizes: p.sizes ?? [],
+            colours: p.colours ?? [],
+          }))
+        )
+        setProductsLoading(false)
+      })
+      .catch(() => setProductsLoading(false))
+  }, [])
 
   useEffect(() => {
     if (cartCount > prevCartCountRef.current) {
@@ -889,9 +948,17 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-          {PRODUCTS.map(p => (
-            <ProductCard key={p.id} product={p} onAddToCart={addToCart} onBuyNow={buyNow} />
-          ))}
+          {productsLoading ? (
+            <ProductSkeleton />
+          ) : products.length === 0 ? (
+            <p className="col-span-full text-center text-white/40 text-sm tracking-wider py-12">
+              No products available. Add products in Sanity Studio.
+            </p>
+          ) : (
+            products.map(p => (
+              <ProductCard key={p._id} product={p} onAddToCart={addToCart} onBuyNow={buyNow} />
+            ))
+          )}
         </div>
 
         <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px border border-white/5">
