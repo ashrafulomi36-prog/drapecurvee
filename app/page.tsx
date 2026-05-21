@@ -1,10 +1,21 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import Image from 'next/image'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Product = { id: number; name: string; price: string; description: string; tag?: string; img: string }
-type OrderForm = { size: string; quantity: number; colour: string; mobile: string; address: string }
+type CartItem = {
+  id: number
+  name: string
+  price: number
+  size: string
+  colour: string
+  quantity: number
+  img: string
+}
+
+// TODO: Replace with your WhatsApp business number (e.g. 8801XXXXXXXXX)
+const WHATSAPP_NUMBER = '8801815569525'
+const DELIVERY_CHARGE = 120
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 const PRODUCTS: Product[] = [
@@ -21,8 +32,76 @@ const NAV_ITEMS = [
   { label: 'Sneakers', href: '#', soon: true },
 ]
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function parsePrice(priceStr: string): number {
+  return parseInt(priceStr.replace(/[^\d]/g, ''), 10) || 0
+}
+
+function formatPrice(amount: number): string {
+  return `৳${amount.toLocaleString('en-BD')}`
+}
+
+function cartItemKey(id: number, size: string, colour: string): string {
+  return `${id}-${size}-${colour}`
+}
+
+function cartTotalItems(cart: CartItem[]): number {
+  return cart.reduce((sum, item) => sum + item.quantity, 0)
+}
+
+function cartSubtotal(cart: CartItem[]): number {
+  return cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+}
+
+function isValidBangladeshMobile(mobile: string): boolean {
+  return /^01\d{9}$/.test(mobile.trim())
+}
+
+function buildWhatsAppMessage(cart: CartItem[], mobile: string, address: string): string {
+  const subtotal = cartSubtotal(cart)
+  const total = subtotal + DELIVERY_CHARGE
+  const lines: string[] = [
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '🛍️ NEW ORDER — DRAPECURVE',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+  ]
+  cart.forEach(item => {
+    const lineTotal = item.price * item.quantity
+    lines.push(
+      `▪ ${item.name}`,
+      `  Size: ${item.size} | Colour: ${item.colour}`,
+      `  Qty: ${item.quantity} × ${formatPrice(item.price)} = ${formatPrice(lineTotal)}`,
+      ''
+    )
+  })
+  lines.push(
+    '─────────────────────',
+    `📦 Subtotal:         ${formatPrice(subtotal)}`,
+    `🚚 Delivery Charge:   ${formatPrice(DELIVERY_CHARGE)}`,
+    `💰 TOTAL:            ${formatPrice(total)}`,
+    '─────────────────────',
+    '',
+    `📱 Mobile: ${mobile.trim()}`,
+    `📍 Address: ${address.trim()}`,
+    '',
+    'Thank you! We will confirm your order shortly.'
+  )
+  return lines.join('\n')
+}
+
+// ─── Toast ───────────────────────────────────────────────────────────────────
+function Toast({ visible }: { visible: boolean }) {
+  if (!visible) return null
+  return (
+    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] px-6 py-3 bg-[#111] border border-white/10 text-white text-xs tracking-widest uppercase shadow-lg">
+      Added to cart ✓
+    </div>
+  )
+}
+
 // ─── Navbar ──────────────────────────────────────────────────────────────────
-function Navbar() {
+function Navbar({ cartCount, onOpenCart }: { cartCount: number; onOpenCart: () => void }) {
   const [open, setOpen]         = useState(false)
   const [itemsOpen, setItemsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -51,9 +130,7 @@ function Navbar() {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'bg-[#0a0a0a]/95 backdrop-blur-md border-b border-white/5' : 'bg-transparent'}`}>
       <div className="max-w-7xl mx-auto px-6 md:px-10 flex items-center justify-between h-16 md:h-20">
 
-        {/* Logo */}
         <a href="#home" onClick={() => go('#home')} className="flex items-center gap-2.5 group">
-          {/* Inline DC SVG mark — no external file dependency */}
           <svg width="28" height="32" viewBox="0 0 200 220" className="opacity-90 group-hover:opacity-100 transition-opacity" fill="white">
             <path d="M20 20 L20 140 L70 140 Q130 140 130 80 Q130 20 70 20 Z M50 45 L65 45 Q100 45 100 80 Q100 115 65 115 L50 115 Z"/>
             <path d="M120 20 Q185 20 185 60 L160 60 Q160 45 135 45 Q110 45 110 80 Q110 115 135 115 Q160 115 160 100 L185 100 Q185 140 120 140 Q80 140 80 80 Q80 20 120 20 Z"/>
@@ -62,36 +139,51 @@ function Navbar() {
           <span className="font-display text-white text-lg tracking-[0.12em] uppercase select-none hidden sm:block">DrapeCurve</span>
         </a>
 
-        {/* Hamburger */}
-        <div ref={ref} className="relative">
-          <button onClick={() => setOpen(!open)} className="flex flex-col gap-[5px] p-2" aria-label="Menu">
-            <span className={`block h-[1.5px] bg-white transition-all duration-300 origin-center ${open ? 'w-6 rotate-45 translate-y-[6.5px]' : 'w-6'}`} />
-            <span className={`block h-[1.5px] bg-white transition-all duration-300 ${open ? 'w-0 opacity-0' : 'w-4'}`} />
-            <span className={`block h-[1.5px] bg-white transition-all duration-300 origin-center ${open ? 'w-6 -rotate-45 -translate-y-[6.5px]' : 'w-6'}`} />
+        <div className="flex items-center gap-2">
+          {/* Cart icon */}
+          <button onClick={onOpenCart} className="relative p-2 text-white hover:text-white/80 transition-colors" aria-label="Cart">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <path d="M16 10a4 4 0 01-8 0" />
+            </svg>
+            {cartCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-white text-black text-[10px] font-medium rounded-full px-1">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
           </button>
 
-          <div className={`absolute right-0 top-12 w-56 bg-[#111] border border-white/8 transition-all duration-300 ${open ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
-            <a href="#home" onClick={() => go('#home')} className="block px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors border-b border-white/5">Home</a>
+          {/* Hamburger */}
+          <div ref={ref} className="relative">
+            <button onClick={() => setOpen(!open)} className="flex flex-col gap-[5px] p-2" aria-label="Menu">
+              <span className={`block h-[1.5px] bg-white transition-all duration-300 origin-center ${open ? 'w-6 rotate-45 translate-y-[6.5px]' : 'w-6'}`} />
+              <span className={`block h-[1.5px] bg-white transition-all duration-300 ${open ? 'w-0 opacity-0' : 'w-4'}`} />
+              <span className={`block h-[1.5px] bg-white transition-all duration-300 origin-center ${open ? 'w-6 -rotate-45 -translate-y-[6.5px]' : 'w-6'}`} />
+            </button>
 
-            {/* Items dropdown */}
-            <div>
-              <button onClick={() => setItemsOpen(!itemsOpen)} className="w-full flex items-center justify-between px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors border-b border-white/5">
-                <span>Items</span>
-                <span className={`transition-transform duration-200 ${itemsOpen ? 'rotate-180' : ''}`}>▾</span>
-              </button>
-              <div className={`overflow-hidden transition-all duration-300 ${itemsOpen ? 'max-h-48' : 'max-h-0'}`}>
-                {NAV_ITEMS.map(item => (
-                  <a key={item.label} href={item.href} onClick={() => { if (!item.soon) go(item.href) }}
-                    className="flex items-center justify-between pl-10 pr-6 py-3 text-xs tracking-[0.15em] uppercase text-white/50 hover:text-white hover:bg-white/5 transition-colors border-b border-white/[0.03]">
-                    <span>{item.label}</span>
-                    {item.soon && <span className="text-[9px] tracking-widest bg-white/10 text-white/40 px-2 py-0.5">SOON</span>}
-                  </a>
-                ))}
+            <div className={`absolute right-0 top-12 w-56 bg-[#111] border border-white/8 transition-all duration-300 ${open ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'}`}>
+              <a href="#home" onClick={() => go('#home')} className="block px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors border-b border-white/5">Home</a>
+
+              <div>
+                <button onClick={() => setItemsOpen(!itemsOpen)} className="w-full flex items-center justify-between px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors border-b border-white/5">
+                  <span>Items</span>
+                  <span className={`transition-transform duration-200 ${itemsOpen ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+                <div className={`overflow-hidden transition-all duration-300 ${itemsOpen ? 'max-h-48' : 'max-h-0'}`}>
+                  {NAV_ITEMS.map(item => (
+                    <a key={item.label} href={item.href} onClick={() => { if (!item.soon) go(item.href) }}
+                      className="flex items-center justify-between pl-10 pr-6 py-3 text-xs tracking-[0.15em] uppercase text-white/50 hover:text-white hover:bg-white/5 transition-colors border-b border-white/[0.03]">
+                      <span>{item.label}</span>
+                      {item.soon && <span className="text-[9px] tracking-widest bg-white/10 text-white/40 px-2 py-0.5">SOON</span>}
+                    </a>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <a href="#contact" onClick={() => go('#contact')} className="block px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors border-b border-white/5">Contact</a>
-            <a href="#queries"  onClick={() => go('#queries')}  className="block px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors">Queries</a>
+              <a href="#contact" onClick={() => go('#contact')} className="block px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors border-b border-white/5">Contact</a>
+              <a href="#queries"  onClick={() => go('#queries')}  className="block px-6 py-3.5 text-xs tracking-[0.2em] uppercase text-white/70 hover:text-white hover:bg-white/5 transition-colors">Queries</a>
+            </div>
           </div>
         </div>
       </div>
@@ -99,135 +191,279 @@ function Navbar() {
   )
 }
 
-// ─── Order Modal ──────────────────────────────────────────────────────────────
-function OrderModal({ product, onClose }: { product: Product; onClose: () => void }) {
-  const [form, setForm] = useState<OrderForm>({ size: '', quantity: 1, colour: '', mobile: '', address: '' })
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
-  const [error, setError]     = useState('')
+// ─── Product Modal ────────────────────────────────────────────────────────────
+function ProductModal({
+  product,
+  onClose,
+  onAddToCart,
+}: {
+  product: Product
+  onClose: () => void
+  onAddToCart: (item: Omit<CartItem, 'quantity'> & { quantity: number }) => void
+}) {
+  const [size, setSize] = useState('')
+  const [colour, setColour] = useState('')
+  const [quantity, setQuantity] = useState(1)
 
-  const set = (k: keyof OrderForm, v: string | number) => setForm(f => ({ ...f, [k]: v }))
+  const canAdd = size && colour
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.size || !form.colour) { setError('Please select size and colour.'); return }
-    setLoading(true); setError('')
-    try {
-      const res  = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_name: product.name, ...form }) })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Order failed')
-      setSuccess(true)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally { setLoading(false) }
+  const handleAdd = () => {
+    if (!canAdd) return
+    onAddToCart({
+      id: product.id,
+      name: product.name,
+      price: parsePrice(product.price),
+      size,
+      colour,
+      quantity,
+      img: product.img,
+    })
+    onClose()
   }
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="relative w-full max-w-lg bg-[#111] border border-white/8 max-h-[90vh] overflow-y-auto">
 
-        {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-white/8">
-          <div>
-            <p className="text-[10px] tracking-[0.3em] uppercase text-white/40 mb-1">Place Order</p>
-            <h2 className="font-display text-lg tracking-widest text-white uppercase">{product.name}</h2>
-          </div>
+          <h2 className="font-display text-lg tracking-widest text-white uppercase">{product.name}</h2>
           <button onClick={onClose} className="p-2 text-white/40 hover:text-white transition-colors text-xl leading-none">✕</button>
         </div>
 
-        {success ? (
-          <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-            <div className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center mb-6">
-              <span className="text-white text-xl">✓</span>
+        <div className="px-8 py-6 space-y-6">
+
+          <div>
+            <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Size</label>
+            <div className="flex flex-wrap gap-2">
+              {SIZES.map(s => (
+                <button type="button" key={s} onClick={() => setSize(s)}
+                  className={`w-12 h-10 text-xs tracking-wider border transition-all duration-200 ${size === s ? 'bg-white text-black border-white' : 'bg-transparent text-white/60 border-white/15 hover:border-white/40'}`}>
+                  {s}
+                </button>
+              ))}
             </div>
-            <h3 className="font-display text-2xl tracking-widest text-white uppercase mb-3">Order Placed</h3>
-            <p className="text-white/40 text-sm leading-relaxed mb-2">Your order has been received. We will contact you on <span className="text-white">{form.mobile}</span> to confirm.</p>
-            <p className="text-white/30 text-xs tracking-widest uppercase mt-4">Cash on Delivery</p>
-            <button onClick={onClose} className="mt-8 px-10 py-3 bg-white text-black text-xs tracking-[0.25em] uppercase hover:bg-white/90 transition-colors">Close</button>
           </div>
-        ) : (
-          <form onSubmit={submit} className="px-8 py-6 space-y-6">
 
-            {/* Size */}
-            <div>
-              <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Size</label>
-              <div className="flex flex-wrap gap-2">
-                {SIZES.map(s => (
-                  <button type="button" key={s} onClick={() => set('size', s)}
-                    className={`w-12 h-10 text-xs tracking-wider border transition-all duration-200 ${form.size === s ? 'bg-white text-black border-white' : 'bg-transparent text-white/60 border-white/15 hover:border-white/40'}`}>
-                    {s}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Colour</label>
+            <div className="space-y-2">
+              {COLOURS.map(c => (
+                <button type="button" key={c} onClick={() => setColour(c)}
+                  className={`w-full text-left px-4 py-2.5 text-xs tracking-wider border transition-all duration-200 ${colour === c ? 'bg-white text-black border-white' : 'bg-transparent text-white/60 border-white/10 hover:border-white/30'}`}>
+                  {c}
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Colour */}
-            <div>
-              <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Colour</label>
-              <div className="space-y-2">
-                {COLOURS.map(c => (
-                  <button type="button" key={c} onClick={() => set('colour', c)}
-                    className={`w-full text-left px-4 py-2.5 text-xs tracking-wider border transition-all duration-200 ${form.colour === c ? 'bg-white text-black border-white' : 'bg-transparent text-white/60 border-white/10 hover:border-white/30'}`}>
-                    {c}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Quantity</label>
+            <div className="flex items-center gap-4">
+              <button type="button" onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-10 h-10 border border-white/15 text-white/60 hover:border-white/40 hover:text-white transition-all text-lg">−</button>
+              <span className="text-white text-lg w-8 text-center">{quantity}</span>
+              <button type="button" onClick={() => setQuantity(q => Math.min(10, q + 1))} className="w-10 h-10 border border-white/15 text-white/60 hover:border-white/40 hover:text-white transition-all text-lg">+</button>
             </div>
+          </div>
 
-            {/* Quantity */}
-            <div>
-              <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Quantity</label>
-              <div className="flex items-center gap-4">
-                <button type="button" onClick={() => set('quantity', Math.max(1, form.quantity - 1))} className="w-10 h-10 border border-white/15 text-white/60 hover:border-white/40 hover:text-white transition-all text-lg">−</button>
-                <span className="text-white text-lg w-8 text-center">{form.quantity}</span>
-                <button type="button" onClick={() => set('quantity', Math.min(10, form.quantity + 1))} className="w-10 h-10 border border-white/15 text-white/60 hover:border-white/40 hover:text-white transition-all text-lg">+</button>
-              </div>
-            </div>
-
-            {/* Mobile */}
-            <div>
-              <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Mobile Number</label>
-              <input type="tel" required placeholder="01XXXXXXXXX" value={form.mobile} onChange={e => set('mobile', e.target.value)}
-                className="w-full bg-transparent border border-white/10 text-white text-sm px-4 py-3 placeholder-white/20 focus:border-white/40 focus:outline-none transition-colors" />
-            </div>
-
-            {/* Address */}
-            <div>
-              <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Delivery Address</label>
-              <textarea required rows={3} placeholder="Full address including district..." value={form.address} onChange={e => set('address', e.target.value)}
-                className="w-full bg-transparent border border-white/10 text-white text-sm px-4 py-3 placeholder-white/20 focus:border-white/40 focus:outline-none transition-colors resize-none" />
-            </div>
-
-            {error && <p className="text-red-400/80 text-xs tracking-wider">{error}</p>}
-
-            <div className="flex items-center gap-3 py-3 px-4 bg-white/[0.03] border border-white/5">
-              <span className="text-lg">💵</span>
-              <div>
-                <p className="text-white/80 text-xs tracking-widest uppercase">Cash on Delivery</p>
-                <p className="text-white/30 text-xs mt-0.5">Pay when your order arrives</p>
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading}
-              className="w-full py-4 bg-white text-black text-xs tracking-[0.3em] uppercase font-medium hover:bg-white/90 transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-3">
-              {loading ? 'Placing Order…' : 'Confirm Order — COD'}
-            </button>
-          </form>
-        )}
+          <button type="button" onClick={handleAdd} disabled={!canAdd}
+            className="w-full py-4 bg-white text-black text-xs tracking-[0.3em] uppercase font-medium hover:bg-white/90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            Add to Cart
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
+// ─── Cart View ────────────────────────────────────────────────────────────────
+function CartView({
+  cart,
+  onClose,
+  onUpdateQuantity,
+  onRemove,
+  onClearAndClose,
+}: {
+  cart: CartItem[]
+  onClose: () => void
+  onUpdateQuantity: (key: string, quantity: number) => void
+  onRemove: (key: string) => void
+  onClearAndClose: () => void
+}) {
+  const [mobile, setMobile] = useState('')
+  const [address, setAddress] = useState('')
+  const [mobileError, setMobileError] = useState('')
+  const [addressError, setAddressError] = useState('')
+  const [orderSent, setOrderSent] = useState(false)
+  const [confirmedMobile, setConfirmedMobile] = useState('')
+
+  const subtotal = cartSubtotal(cart)
+  const total = subtotal + DELIVERY_CHARGE
+
+  const validate = (): boolean => {
+    let valid = true
+    setMobileError('')
+    setAddressError('')
+
+    if (!mobile.trim()) {
+      setMobileError('Please enter your mobile number')
+      valid = false
+    } else if (!isValidBangladeshMobile(mobile)) {
+      setMobileError('Please enter a valid Bangladeshi mobile number')
+      valid = false
+    }
+
+    if (!address.trim()) {
+      setAddressError('Please enter your delivery address')
+      valid = false
+    }
+
+    return valid
+  }
+
+  const handleWhatsApp = () => {
+    if (!validate()) return
+    const message = buildWhatsAppMessage(cart, mobile, address)
+    window.open(
+      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`,
+      '_blank'
+    )
+    setConfirmedMobile(mobile.trim())
+    setOrderSent(true)
+  }
+
+  if (orderSent) {
+    return (
+      <div className="fixed inset-0 z-[250] bg-[#0a0a0a] flex flex-col">
+        <div className="flex items-center justify-between px-6 md:px-10 h-16 md:h-20 border-b border-[#222]">
+          <h2 className="font-display text-sm tracking-[0.25em] text-white uppercase">Your Cart</h2>
+          <button onClick={onClose} className="p-2 text-white/40 hover:text-white transition-colors text-xl leading-none">✕</button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
+          <div className="w-14 h-14 rounded-full border border-white/20 flex items-center justify-center mb-8">
+            <span className="text-white text-2xl">✓</span>
+          </div>
+          <h3 className="font-display text-2xl tracking-[0.2em] text-white uppercase mb-4">Order Sent!</h3>
+          <p className="text-white/50 text-sm leading-relaxed max-w-sm mb-10">
+            Your order has been sent to our WhatsApp.
+            We will call you at <span className="text-white">{confirmedMobile}</span> to confirm.
+          </p>
+          <button onClick={onClearAndClose}
+            className="w-full max-w-xs py-4 bg-white text-black text-xs tracking-[0.3em] uppercase hover:bg-white/90 transition-colors">
+            Continue Shopping
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-[250] bg-[#0a0a0a] flex flex-col">
+      <div className="flex items-center justify-between px-6 md:px-10 h-16 md:h-20 border-b border-[#222] shrink-0">
+        <h2 className="font-display text-sm tracking-[0.25em] text-white uppercase">Your Cart</h2>
+        <button onClick={onClose} className="p-2 text-white/40 hover:text-white transition-colors text-xl leading-none" aria-label="Close cart">✕</button>
+      </div>
+
+      {cart.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
+          <p className="text-white/40 text-sm tracking-wider">Your cart is empty.</p>
+          <button onClick={onClose}
+            className="px-10 py-4 border border-white/20 text-white text-[10px] tracking-[0.3em] uppercase hover:bg-white hover:text-black transition-all duration-300">
+            Continue Shopping
+          </button>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-2xl mx-auto w-full px-6 md:px-10 py-6">
+            {cart.map(item => {
+              const key = cartItemKey(item.id, item.size, item.colour)
+              const itemSubtotal = item.price * item.quantity
+              return (
+                <div key={key} className="py-6 border-b border-[#222]">
+                  <div className="flex justify-between items-start gap-4 mb-2">
+                    <h3 className="font-display text-sm tracking-[0.12em] text-white uppercase">{item.name}</h3>
+                    <span className="text-sm text-white/60 shrink-0">{formatPrice(item.price)}</span>
+                  </div>
+                  <p className="text-xs text-white/40 tracking-wide mb-4">
+                    Size: {item.size}  |  Colour: {item.colour}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <button type="button" onClick={() => onUpdateQuantity(key, Math.max(1, item.quantity - 1))}
+                        className="w-9 h-9 border border-white/15 text-white/60 hover:border-white/40 hover:text-white transition-all">−</button>
+                      <span className="text-white w-6 text-center">{item.quantity}</span>
+                      <button type="button" onClick={() => onUpdateQuantity(key, item.quantity + 1)}
+                        className="w-9 h-9 border border-white/15 text-white/60 hover:border-white/40 hover:text-white transition-all">+</button>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] tracking-[0.2em] uppercase text-white/30 mb-0.5">Subtotal</p>
+                      <p className="text-sm text-white">{formatPrice(itemSubtotal)}</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => onRemove(key)}
+                    className="mt-4 text-[10px] tracking-[0.25em] uppercase text-white/40 hover:text-[#ef4444] transition-colors">
+                    Remove
+                  </button>
+                </div>
+              )
+            })}
+
+            {/* Order summary */}
+            <div className="py-8 space-y-3 border-b border-[#222]">
+              <div className="flex justify-between text-sm">
+                <span className="text-white/50 tracking-wide">Subtotal:</span>
+                <span className="text-white">{formatPrice(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[10px] tracking-[0.15em] uppercase text-white/50">Delivery Charge:</span>
+                <span className="text-white">{formatPrice(DELIVERY_CHARGE)}</span>
+              </div>
+              <div className="pt-3 border-t border-[#333] flex justify-between">
+                <span className="text-[10px] tracking-[0.25em] uppercase text-white/60">Total:</span>
+                <span className="text-white font-medium">{formatPrice(total)}</span>
+              </div>
+            </div>
+
+            {/* Contact fields */}
+            <div className="py-8 space-y-6">
+              <div>
+                <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Mobile Number</label>
+                <input type="tel" placeholder="01XXXXXXXXX" value={mobile} onChange={e => { setMobile(e.target.value); setMobileError('') }}
+                  className="w-full bg-transparent border border-white/10 text-white text-sm px-4 py-3 placeholder-white/20 focus:border-white/40 focus:outline-none transition-colors" />
+                {mobileError && <p className="mt-2 text-[#ef4444] text-xs">{mobileError}</p>}
+              </div>
+              <div>
+                <label className="block text-[10px] tracking-[0.25em] uppercase text-white/40 mb-3">Delivery Address</label>
+                <textarea rows={4} placeholder="Full address including district..." value={address} onChange={e => { setAddress(e.target.value); setAddressError('') }}
+                  className="w-full bg-transparent border border-white/10 text-white text-sm px-4 py-3 placeholder-white/20 focus:border-white/40 focus:outline-none transition-colors resize-none" />
+                {addressError && <p className="mt-2 text-[#ef4444] text-xs">{addressError}</p>}
+              </div>
+
+              <button type="button" onClick={handleWhatsApp}
+                className="w-full py-4 bg-white text-black text-xs tracking-[0.3em] uppercase font-medium hover:bg-white/90 transition-all duration-200 flex items-center justify-center gap-2">
+                <span>📱</span>
+                <span>Confirm Order Via WhatsApp →</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Product Card ─────────────────────────────────────────────────────────────
-function ProductCard({ product }: { product: Product }) {
+function ProductCard({
+  product,
+  onAddToCart,
+}: {
+  product: Product
+  onAddToCart: (item: Omit<CartItem, 'quantity'> & { quantity: number }) => void
+}) {
   const [showModal, setShowModal] = useState(false)
   return (
     <>
       <div className="group relative flex flex-col bg-[#0e0e0e] border border-white/5 hover:border-white/10 transition-all duration-500">
         <div className="relative aspect-[3/4] overflow-hidden bg-[#151515]">
-          {/* IMAGE — uncomment once you add photos to /public/products/ */}
-          {/* <Image src={`/products/${product.img}`} alt={product.name} fill className="object-cover object-top group-hover:scale-105 transition-transform duration-700" /> */}
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <div className="w-16 h-16 border border-white/10 rounded-full flex items-center justify-center">
               <span className="font-display text-white/20 text-xs tracking-widest">DC</span>
@@ -257,7 +493,13 @@ function ProductCard({ product }: { product: Product }) {
           </button>
         </div>
       </div>
-      {showModal && <OrderModal product={product} onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <ProductModal
+          product={product}
+          onClose={() => setShowModal(false)}
+          onAddToCart={onAddToCart}
+        />
+      )}
     </>
   )
 }
@@ -328,9 +570,66 @@ function Footer() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [cartOpen, setCartOpen] = useState(false)
+  const [toastVisible, setToastVisible] = useState(false)
+
+  const cartCount = cartTotalItems(cart)
+
+  const showToast = () => {
+    setToastVisible(true)
+    setTimeout(() => setToastVisible(false), 2000)
+  }
+
+  const addToCart = (item: Omit<CartItem, 'quantity'> & { quantity: number }) => {
+    const key = cartItemKey(item.id, item.size, item.colour)
+    setCart(prev => {
+      const existing = prev.find(
+        i => cartItemKey(i.id, i.size, i.colour) === key
+      )
+      if (existing) {
+        return prev.map(i =>
+          cartItemKey(i.id, i.size, i.colour) === key
+            ? { ...i, quantity: i.quantity + item.quantity }
+            : i
+        )
+      }
+      return [...prev, { ...item }]
+    })
+    showToast()
+  }
+
+  const updateQuantity = (key: string, quantity: number) => {
+    setCart(prev =>
+      prev.map(i =>
+        cartItemKey(i.id, i.size, i.colour) === key ? { ...i, quantity } : i
+      )
+    )
+  }
+
+  const removeFromCart = (key: string) => {
+    setCart(prev => prev.filter(i => cartItemKey(i.id, i.size, i.colour) !== key))
+  }
+
+  const clearCartAndClose = () => {
+    setCart([])
+    setCartOpen(false)
+  }
+
   return (
     <main className="min-h-screen bg-[#080808] overflow-x-hidden">
-      <Navbar />
+      <Navbar cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
+      <Toast visible={toastVisible} />
+
+      {cartOpen && (
+        <CartView
+          cart={cart}
+          onClose={() => setCartOpen(false)}
+          onUpdateQuantity={updateQuantity}
+          onRemove={removeFromCart}
+          onClearAndClose={clearCartAndClose}
+        />
+      )}
 
       {/* ── HERO ── */}
       <section id="home" className="relative min-h-screen flex flex-col justify-end pb-20 px-6 md:px-10 pt-24 overflow-hidden">
@@ -421,7 +720,9 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-          {PRODUCTS.map(p => <ProductCard key={p.id} product={p} />)}
+          {PRODUCTS.map(p => (
+            <ProductCard key={p.id} product={p} onAddToCart={addToCart} />
+          ))}
         </div>
 
         <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px border border-white/5">
