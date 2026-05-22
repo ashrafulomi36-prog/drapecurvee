@@ -1,1 +1,5 @@
 node_modules
+
+# Accidental Windows duplicate files (e.g. "page (2).tsx")
+app/studio/page (*).tsx
+app/studio/[[...tool]]/
